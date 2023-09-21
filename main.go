@@ -78,9 +78,9 @@ func minmax(data []Data) (float64, float64) {
 }
 
 func calculateEpsilon(min float64, max float64) float64 {
-	var epsilon float64 = math.Round((max-min)*100/GRAPH_HEIGHT) / 100
+	var epsilon float64 = math.Abs(math.Round((max-min)*100/GRAPH_HEIGHT) / 100)
 
-	if epsilon < 0.01 && epsilon > -0.99 {
+	if epsilon < 0.01 {
 		epsilon = 0.01
 	}
 

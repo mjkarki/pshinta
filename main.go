@@ -12,7 +12,6 @@ import (
 
 const URL = "https://api.spot-hinta.fi/TodayAndDayForward"
 const TS_LAYOUT = "2006-01-02T15:04:05-07:00"
-const GRAPH_HEIGHT = 19 // Total height will be 19+4 lines
 
 type JsonData struct {
 	Rank         int     `json:"Rank"`
@@ -78,27 +77,30 @@ func minmax(data []Data) (float64, float64) {
 }
 
 func calculateEpsilon(min float64, max float64) float64 {
-	var epsilon float64 = math.Abs(math.Round((max-min)*100/GRAPH_HEIGHT) / 100)
-
-	if epsilon < 0.01 {
-		epsilon = 0.01
+	max = math.Round(max*1000) / 1000
+	min = math.Round(min*1000) / 1000
+	if max-min == 0.0 {
+		return 0.0001
 	}
+
+	var exp int = int(math.Round(math.Log10(math.Abs(max-min)))) - 1
+	var epsilon float64 = math.Pow10(exp)
 
 	return epsilon
 }
 
 func generateGraph(dataArray []Data, min float64, max float64, epsilon float64) {
 	for i := (max + epsilon); i >= min; i -= epsilon {
-		fmt.Printf("\n%5.2f | ", i)
+		fmt.Printf("\n%7.4f | ", i)
 		for _, data := range dataArray {
-			if i <= (data.Price + epsilon) {
+			if i < (data.Price + epsilon) {
 				fmt.Print("*")
 			} else {
 				fmt.Print(" ")
 			}
 		}
 	}
-	fmt.Print("\n      ")
+	fmt.Print("\n€/kWh ")
 	for _, data := range dataArray {
 		if data.Time.Hour()%6 == 0 {
 			fmt.Print("''|'''")

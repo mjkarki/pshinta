@@ -90,35 +90,35 @@ func calculateEpsilon(min float64, max float64) float64 {
 }
 
 func generateGraph(dataArray []Data, min float64, max float64, epsilon float64) {
-	for i := (max + epsilon); i >= min; i -= epsilon {
+	for i := max; i > (min - epsilon); i -= epsilon {
 		fmt.Printf("\n%7.4f | ", i)
 		for _, data := range dataArray {
-			if i < (data.Price + epsilon) {
+			if i <= data.Price {
 				fmt.Print("*")
 			} else {
 				fmt.Print(" ")
 			}
 		}
 	}
-	fmt.Print("\n€/kWh ")
+	fmt.Print("\n  €/kWh ")
 	for _, data := range dataArray {
 		if data.Time.Hour()%6 == 0 {
 			fmt.Print("''|'''")
 		}
 	}
-	fmt.Print("\n    ")
+	fmt.Print("\n      ")
 	for _, data := range dataArray {
 		if data.Time.Hour()%12 == 0 {
 			fmt.Printf("    ^       ")
 		}
 	}
-	fmt.Print("\n    ")
+	fmt.Print("\n      ")
 	for _, data := range dataArray {
 		if data.Time.Hour()%12 == 0 {
 			fmt.Printf("  %02d.%02d     ", data.Time.Day(), data.Time.Month())
 		}
 	}
-	fmt.Print("\n    ")
+	fmt.Print("\n      ")
 	for _, data := range dataArray {
 		if data.Time.Hour()%12 == 0 {
 			fmt.Printf("  %02d:%02d     ", data.Time.Hour(), data.Time.Minute())

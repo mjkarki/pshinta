@@ -124,7 +124,7 @@ func generateGraph(dataArray []Data, min float64, max float64, epsilon float64) 
 			fmt.Printf("  %02d:%02d     ", data.Time.Hour(), data.Time.Minute())
 		}
 	}
-	fmt.Println()
+	fmt.Printf("\n\nMinimi: %.4f, Maksimi: %.4f\n", min, max)
 }
 
 func main() {

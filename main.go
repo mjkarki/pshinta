@@ -90,7 +90,7 @@ func calculateEpsilon(min float64, max float64) float64 {
 }
 
 func generateGraph(dataArray []Data, min float64, max float64, epsilon float64) {
-	for i := max; i > (min - epsilon); i -= epsilon {
+	for i := max; i >= min; i -= epsilon {
 		fmt.Printf("\n%7.4f | ", i)
 		for _, data := range dataArray {
 			if i <= data.Price {

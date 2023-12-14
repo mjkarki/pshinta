@@ -76,16 +76,18 @@ func minmax(data []Data) (float64, float64) {
 	return min, max
 }
 
-func calculateEpsilon(min float64, max float64) float64 {
-	max = math.Round(max*1000) / 1000
-	min = math.Round(min*1000) / 1000
-	var delta = max - min
+func calculateEpsilon(minimum float64, maximum float64) float64 {
+	var minValue float64 = min(minimum, maximum)
+	var maxValue float64 = max(minimum, maximum)
+	minValue = math.Round(minValue*1000) / 1000
+	maxValue = math.Round(maxValue*1000) / 1000
+	var delta = maxValue - minValue
 
 	if delta == 0.0 {
 		return 0.0001
 	}
 
-	return delta / 15
+	return delta / 15.0
 }
 
 func generateGraph(dataArray []Data, min float64, max float64, epsilon float64) {

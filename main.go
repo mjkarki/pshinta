@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -12,6 +13,14 @@ import (
 
 const URL = "https://api.spot-hinta.fi/TodayAndDayForward"
 const TS_LAYOUT = "2006-01-02T15:04:05-07:00"
+const HTTP_TIMEOUT = 10 * time.Second
+const GRAPH_STEP = 15.0
+
+// Hour markers for graph display
+const (
+	HourMarker6  = 6
+	HourMarker12 = 12
+)
 
 type JsonData struct {
 	Rank         int     `json:"Rank"`
@@ -25,76 +34,89 @@ type Data struct {
 	Price float64
 }
 
-func getDataArray(url string) []JsonData {
-	resp, err := http.Get(url)
+// ErrEmptyData is returned when no data is available
+var ErrEmptyData = errors.New("no data available")
+
+func GetDataArray(url string) ([]JsonData, error) {
+	client := http.Client{Timeout: HTTP_TIMEOUT}
+	resp, err := client.Get(url)
 	if err != nil {
-		log.Fatal("Failed to get data:", err)
+		return nil, fmt.Errorf("failed to get data: %w", err)
 	}
+	defer resp.Body.Close()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatal("Failed to read data:", err)
+		return nil, fmt.Errorf("failed to read data: %w", err)
 	}
 
 	var dataArray []JsonData
 	err = json.Unmarshal(data, &dataArray)
 	if err != nil {
-		log.Fatal("Failed to parse JSON:", err)
+		return nil, fmt.Errorf("failed to parse JSON: %w", err)
 	}
 
-	return dataArray
+	return dataArray, nil
 }
 
-func convertDataArray(jsonData []JsonData) []Data {
+func ConvertDataArray(jsonData []JsonData) ([]Data, error) {
 	var result []Data
 
 	for _, value := range jsonData {
-		dt, err := time.Parse(TS_LAYOUT, value.DateTime)
+		dateTime, err := time.Parse(TS_LAYOUT, value.DateTime)
 		if err != nil {
-			log.Fatal("Failed to convert timestamp:", err)
+			return nil, fmt.Errorf("failed to convert timestamp: %w", err)
 		}
-		pr := value.PriceWithTax
-		result = append(result, Data{Time: dt, Price: pr})
+		price := value.PriceWithTax
+		result = append(result, Data{Time: dateTime, Price: price})
 	}
 
-	return result
+	return result, nil
 }
 
-func minmax(data []Data) (float64, float64) {
-	var min float64 = data[0].Price
-	var max float64 = min
+func MinMax(data []Data) (float64, float64, error) {
+	if len(data) == 0 {
+		return 0, 0, ErrEmptyData
+	}
+
+	min := data[0].Price
+	max := min
 
 	for _, d := range data {
-		if max < d.Price {
-			max = d.Price
-		}
-		if min > d.Price {
-			min = d.Price
+		if !math.IsNaN(d.Price) {
+			if max < d.Price {
+				max = d.Price
+			}
+			if min > d.Price {
+				min = d.Price
+			}
 		}
 	}
 
-	return min, max
+	return min, max, nil
 }
 
-func calculateEpsilon(minimum float64, maximum float64) float64 {
-	var minValue float64 = min(minimum, maximum)
-	var maxValue float64 = max(minimum, maximum)
+func CalculateEpsilon(minimum float64, maximum float64) float64 {
+	minValue := math.Min(minimum, maximum)
+	maxValue := math.Max(minimum, maximum)
 	minValue = math.Round(minValue*1000) / 1000
 	maxValue = math.Round(maxValue*1000) / 1000
-	var delta = maxValue - minValue
+	delta := maxValue - minValue
 
 	if delta == 0.0 {
 		return 0.0001
 	}
 
-	return delta / 15.0
+	return delta / GRAPH_STEP
 }
 
-func generateGraph(dataArray []Data, min float64, max float64, epsilon float64) {
+func GenerateGraph(dataArray []Data, min float64, max float64, epsilon float64) {
 	for i := max; i >= min; i -= epsilon {
 		fmt.Printf("\n%7.4f | ", i)
 		for _, data := range dataArray {
-			if i <= data.Price {
+			if math.IsNaN(data.Price) {
+				fmt.Print(" ")
+			} else if i <= data.Price {
 				fmt.Print("*")
 			} else {
 				fmt.Print(" ")
@@ -103,39 +125,52 @@ func generateGraph(dataArray []Data, min float64, max float64, epsilon float64) 
 	}
 	fmt.Print("\n  €/kWh ")
 	for _, data := range dataArray {
-		if data.Time.Hour()%6 == 0 {
+		if data.Time.Hour()%HourMarker6 == 0 {
 			fmt.Print("''|'''")
 		}
 	}
 	fmt.Print("\n      ")
 	for _, data := range dataArray {
-		if data.Time.Hour()%12 == 0 {
+		if data.Time.Hour()%HourMarker12 == 0 {
 			fmt.Printf("    ^       ")
 		}
 	}
 	fmt.Print("\n      ")
 	for _, data := range dataArray {
-		if data.Time.Hour()%12 == 0 {
+		if data.Time.Hour()%HourMarker12 == 0 {
 			fmt.Printf("  %02d.%02d     ", data.Time.Day(), data.Time.Month())
 		}
 	}
 	fmt.Print("\n      ")
 	for _, data := range dataArray {
-		if data.Time.Hour()%12 == 0 {
+		if data.Time.Hour()%HourMarker12 == 0 {
 			fmt.Printf("  %02d:%02d     ", data.Time.Hour(), data.Time.Minute())
 		}
 	}
-	fmt.Printf("\n\nMinimi: %.4f, Maksimi: %.4f\n", min, max)
+	fmt.Printf("\n\nMin: %.4f, Max: %.4f\n", min, max)
 }
 
 func main() {
-	dataArray := convertDataArray(getDataArray(URL))
+	jsonData, err := GetDataArray(URL)
+	if err != nil {
+		log.Fatalf("Failed to get data array: %v", err)
+	}
+
+	dataArray, err := ConvertDataArray(jsonData)
+	if err != nil {
+		log.Fatalf("Failed to convert data array: %v", err)
+	}
+
+	// Add marker for end of graph
 	last := dataArray[len(dataArray)-1].Time
 	last = last.Add(time.Hour)
 	dataArray = append(dataArray, Data{Time: last, Price: math.NaN()})
 
-	min, max := minmax(dataArray)
-	epsilon := calculateEpsilon(min, max)
+	min, max, err := MinMax(dataArray)
+	if err != nil {
+		log.Fatalf("Failed to calculate min/max: %v", err)
+	}
 
-	generateGraph(dataArray, min, max, epsilon)
+	epsilon := CalculateEpsilon(min, max)
+	GenerateGraph(dataArray, min, max, epsilon)
 }

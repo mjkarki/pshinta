@@ -152,18 +152,20 @@ func TestDownsampleData(t *testing.T) {
 		{Time: now.Add(1*time.Hour + 45*time.Minute), Price: 8.0},
 	}
 
-	// Downsample with step 4 (15-min data to hourly)
+	// Downsample with step 4 (15-min data to hourly) - should average each group
 	got := DownsampleData(data, 4)
 
 	if len(got) != 2 {
 		t.Errorf("DownsampleData() expected 2 elements, got %d", len(got))
 	}
 
-	if got[0].Price != 1.0 {
-		t.Errorf("DownsampleData() first price = %v, want 1.0", got[0].Price)
+	// First group: (1+2+3+4)/4 = 2.5
+	if math.Abs(got[0].Price-2.5) > 0.001 {
+		t.Errorf("DownsampleData() first price = %v, want 2.5", got[0].Price)
 	}
-	if got[1].Price != 5.0 {
-		t.Errorf("DownsampleData() second price = %v, want 5.0", got[1].Price)
+	// Second group: (5+6+7+8)/4 = 6.5
+	if math.Abs(got[1].Price-6.5) > 0.001 {
+		t.Errorf("DownsampleData() second price = %v, want 6.5", got[1].Price)
 	}
 
 	// Test empty array
@@ -176,5 +178,39 @@ func TestDownsampleData(t *testing.T) {
 	single := DownsampleData([]Data{{Time: now, Price: 1.0}}, 4)
 	if len(single) != 1 {
 		t.Errorf("DownsampleData() single element should return 1, got %d", len(single))
+	}
+	if single[0].Price != 1.0 {
+		t.Errorf("DownsampleData() single element price = %v, want 1.0", single[0].Price)
+	}
+
+	// Test with NaN values - should be excluded from average
+	dataWithNaN := []Data{
+		{Time: now, Price: 1.0},
+		{Time: now.Add(15 * time.Minute), Price: math.NaN()},
+		{Time: now.Add(30 * time.Minute), Price: 3.0},
+		{Time: now.Add(45 * time.Minute), Price: 4.0},
+	}
+	gotNaN := DownsampleData(dataWithNaN, 4)
+	if len(gotNaN) != 1 {
+		t.Errorf("DownsampleData() with NaN expected 1 element, got %d", len(gotNaN))
+	}
+	// Average of (1+3+4)/3 = 8/3 ≈ 2.6667
+	expected := 8.0 / 3.0
+	if math.Abs(gotNaN[0].Price-expected) > 0.001 {
+		t.Errorf("DownsampleData() with NaN price = %v, want %v", gotNaN[0].Price, expected)
+	}
+
+	// Test with all NaN values - should return NaN
+	allNaN := []Data{
+		{Time: now, Price: math.NaN()},
+		{Time: now.Add(15 * time.Minute), Price: math.NaN()},
+		{Time: now.Add(30 * time.Minute), Price: math.NaN()},
+	}
+	gotAllNaN := DownsampleData(allNaN, 4)
+	if len(gotAllNaN) != 1 {
+		t.Errorf("DownsampleData() all NaN expected 1 element, got %d", len(gotAllNaN))
+	}
+	if !math.IsNaN(gotAllNaN[0].Price) {
+		t.Errorf("DownsampleData() all NaN price should be NaN, got %v", gotAllNaN[0].Price)
 	}
 }

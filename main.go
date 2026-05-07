@@ -80,7 +80,8 @@ func ConvertDataArray(jsonData []JsonData) ([]Data, error) {
 }
 
 // DownsampleData reduces the data points to fit within display constraints
-// For 15-minute data (4 points per hour), we keep every 4th point to get hourly resolution
+// For 15-minute data (4 points per hour), we average each group of 'step' points
+// to get hourly resolution with averaged prices
 func DownsampleData(data []Data, step int) []Data {
 	if len(data) == 0 {
 		return nil
@@ -88,7 +89,34 @@ func DownsampleData(data []Data, step int) []Data {
 
 	var result []Data
 	for i := 0; i < len(data); i += step {
-		result = append(result, data[i])
+		// Calculate average for this group
+		end := i + step
+		if end > len(data) {
+			end = len(data)
+		}
+
+		var sum float64
+		var count int
+		var firstTime time.Time
+
+		for j := i; j < end; j++ {
+			if !math.IsNaN(data[j].Price) {
+				sum += data[j].Price
+				count++
+			}
+			if j == i {
+				firstTime = data[j].Time
+			}
+		}
+
+		var avgPrice float64
+		if count > 0 {
+			avgPrice = sum / float64(count)
+		} else {
+			avgPrice = math.NaN()
+		}
+
+		result = append(result, Data{Time: firstTime, Price: avgPrice})
 	}
 
 	return result

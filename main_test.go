@@ -138,3 +138,43 @@ func TestConvertDataArray(t *testing.T) {
 		t.Errorf("ConvertDataArray() second price = %v, want 24.0", got[1].Price)
 	}
 }
+
+func TestDownsampleData(t *testing.T) {
+	now := time.Now()
+	data := []Data{
+		{Time: now, Price: 1.0},
+		{Time: now.Add(15 * time.Minute), Price: 2.0},
+		{Time: now.Add(30 * time.Minute), Price: 3.0},
+		{Time: now.Add(45 * time.Minute), Price: 4.0},
+		{Time: now.Add(time.Hour), Price: 5.0},
+		{Time: now.Add(1*time.Hour + 15*time.Minute), Price: 6.0},
+		{Time: now.Add(1*time.Hour + 30*time.Minute), Price: 7.0},
+		{Time: now.Add(1*time.Hour + 45*time.Minute), Price: 8.0},
+	}
+
+	// Downsample with step 4 (15-min data to hourly)
+	got := DownsampleData(data, 4)
+
+	if len(got) != 2 {
+		t.Errorf("DownsampleData() expected 2 elements, got %d", len(got))
+	}
+
+	if got[0].Price != 1.0 {
+		t.Errorf("DownsampleData() first price = %v, want 1.0", got[0].Price)
+	}
+	if got[1].Price != 5.0 {
+		t.Errorf("DownsampleData() second price = %v, want 5.0", got[1].Price)
+	}
+
+	// Test empty array
+	empty := DownsampleData([]Data{}, 4)
+	if len(empty) != 0 {
+		t.Errorf("DownsampleData() empty array should return empty, got %d", len(empty))
+	}
+
+	// Test single element
+	single := DownsampleData([]Data{{Time: now, Price: 1.0}}, 4)
+	if len(single) != 1 {
+		t.Errorf("DownsampleData() single element should return 1, got %d", len(single))
+	}
+}

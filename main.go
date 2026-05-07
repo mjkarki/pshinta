@@ -15,6 +15,11 @@ const URL = "https://api.spot-hinta.fi/TodayAndDayForward"
 const TS_LAYOUT = "2006-01-02T15:04:05-07:00"
 const HTTP_TIMEOUT = 10 * time.Second
 const GRAPH_STEP = 15.0
+const MAX_DISPLAY_POINTS = 80
+
+// Data is now 15-minute resolution (4 points per hour)
+// Downsample to hourly by keeping every 4th point
+const DOWNAMPLE_STEP = 4
 
 // Hour markers for graph display
 const (
@@ -72,6 +77,21 @@ func ConvertDataArray(jsonData []JsonData) ([]Data, error) {
 	}
 
 	return result, nil
+}
+
+// DownsampleData reduces the data points to fit within display constraints
+// For 15-minute data (4 points per hour), we keep every 4th point to get hourly resolution
+func DownsampleData(data []Data, step int) []Data {
+	if len(data) == 0 {
+		return nil
+	}
+
+	var result []Data
+	for i := 0; i < len(data); i += step {
+		result = append(result, data[i])
+	}
+
+	return result
 }
 
 func MinMax(data []Data) (float64, float64, error) {
@@ -161,15 +181,21 @@ func main() {
 		log.Fatalf("Failed to convert data array: %v", err)
 	}
 
-	// Add marker for end of graph
-	last := dataArray[len(dataArray)-1].Time
-	last = last.Add(time.Hour)
-	dataArray = append(dataArray, Data{Time: last, Price: math.NaN()})
-
+	// Calculate min/max from ALL data points (before downsampling)
+	// This ensures the Y-axis range reflects the actual price range
 	min, max, err := MinMax(dataArray)
 	if err != nil {
 		log.Fatalf("Failed to calculate min/max: %v", err)
 	}
+
+	// Downsample 15-minute data to hourly (keep every 4th point)
+	// This ensures the X-axis fits within 80 columns
+	dataArray = DownsampleData(dataArray, DOWNAMPLE_STEP)
+
+	// Add marker for end of graph
+	last := dataArray[len(dataArray)-1].Time
+	last = last.Add(time.Hour)
+	dataArray = append(dataArray, Data{Time: last, Price: math.NaN()})
 
 	epsilon := CalculateEpsilon(min, max)
 	GenerateGraph(dataArray, min, max, epsilon)
